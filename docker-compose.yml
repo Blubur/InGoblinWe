@@ -1,0 +1,41 @@
+# Servicios de infraestructura para desarrollo local.
+# La API y la web se ejecutan en tu máquina con `pnpm dev`; aquí solo viven los datos.
+# Los puertos se publican únicamente en 127.0.0.1 (no son accesibles desde la red).
+name: goblins
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-goblins}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-goblins_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-goblins}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - goblins_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - goblins_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  goblins_postgres:
+  goblins_redis:

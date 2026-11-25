@@ -1,0 +1,12 @@
+{
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "editor.formatOnSave": false,
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/dist-test": true,
+    "**/.next": true,
+    "pnpm-lock.yaml": true
+  }
+}

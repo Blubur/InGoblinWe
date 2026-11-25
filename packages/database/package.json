@@ -1,0 +1,22 @@
+{
+  "name": "@goblins/database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Conexión a PostgreSQL y migraciones SQL",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "tsc -p tsconfig.json --outDir dist-test && node --test \"dist-test/**/*.test.js\"",
+    "migrate": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@goblins/core": "workspace:*",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.7",
+    "@types/pg": "^8.23.1",
+    "typescript": "^6.0.3"
+  }
+}

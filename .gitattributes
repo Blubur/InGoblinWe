@@ -1,0 +1,14 @@
+# Fin de línea LF en todo el repositorio (evita problemas entre Windows, Docker y Linux).
+* text=auto eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.zip binary

@@ -1,0 +1,19 @@
+{
+  "name": "@goblins/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Configuración validada y utilidades compartidas",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "tsc -p tsconfig.json --outDir dist-test && node --test \"dist-test/**/*.test.js\""
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.7",
+    "typescript": "^6.0.3"
+  }
+}
