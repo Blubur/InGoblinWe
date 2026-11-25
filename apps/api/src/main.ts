@@ -2,7 +2,10 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigError, loadRootEnv, parseConfig } from '@goblins/core';
+import { findCommunityByHost, type Pool } from '@goblins/database';
 import { AppModule } from './app.module';
+import { DB_POOL } from './infra/tokens';
+import { createTenantMiddleware } from './tenant/tenant.middleware';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
@@ -12,6 +15,16 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api/v1');
+
+  const pool = app.get<Pool>(DB_POOL);
+  app.use(
+    createTenantMiddleware({
+      lookup: (host) => findCommunityByHost(pool, host),
+      baseDomain: config.PLATFORM_BASE_DOMAIN,
+      allowLoopback: config.NODE_ENV !== 'production',
+      skipPathPrefixes: ['/api/v1/health'],
+    }),
+  );
   app.enableShutdownHooks();
 
   await app.listen(config.API_PORT, config.API_HOST);

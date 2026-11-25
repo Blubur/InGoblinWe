@@ -1,8 +1,9 @@
-import { after, before, test } from 'node:test';
+import { after, before, test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
 import { loadRootEnv } from '@goblins/core';
+import { findCommunityByHost } from './communities';
 import { runMigrations } from './migrate';
 
 /**
@@ -38,6 +39,13 @@ after(async () => {
   }
 });
 
+/** Omite la prueba (en tiempo de ejecución, cuando ya se sabe si hay base de datos). */
+function skipIfNoDb(t: TestContext): boolean {
+  if (!skipReason) return false;
+  t.skip(skipReason);
+  return true;
+}
+
 async function rejects(sql: string, params: unknown[], code: string): Promise<void> {
   await assert.rejects(pool!.query(sql, params), (error: { code?: string }) => error.code === code);
 }
@@ -45,7 +53,8 @@ async function rejects(sql: string, params: unknown[], code: string): Promise<vo
 const UNIQUE = '23505';
 const CHECK = '23514';
 
-test('usuarios: el email debe ser único, en minúsculas y con forma válida', { skip: skipReason }, async () => {
+test('usuarios: el email debe ser único, en minúsculas y con forma válida', async (t) => {
+  if (skipIfNoDb(t)) return;
   const ins = `INSERT INTO users (email, display_name, password_hash) VALUES ($1, 'Ana', 'x')`;
   await pool!.query(ins, ['ana@example.com']);
   await rejects(ins, ['ana@example.com'], UNIQUE);
@@ -53,7 +62,8 @@ test('usuarios: el email debe ser único, en minúsculas y con forma válida', {
   await rejects(ins, ['sin-arroba'], CHECK);
 });
 
-test('membresías: una por usuario y comunidad, y se borran en cascada', { skip: skipReason }, async () => {
+test('membresías: una por usuario y comunidad, y se borran en cascada', async (t) => {
+  if (skipIfNoDb(t)) return;
   const c = await pool!.query(`INSERT INTO communities (slug, name) VALUES ('foro-a', 'A') RETURNING id`);
   const u = await pool!.query(
     `INSERT INTO users (email, display_name, password_hash) VALUES ('b@example.com', 'B', 'x') RETURNING id`,
@@ -67,7 +77,8 @@ test('membresías: una por usuario y comunidad, y se borran en cascada', { skip:
   assert.equal(left.rows[0].n, 0);
 });
 
-test('sesiones: token único, caducidad posterior a la creación y cascada', { skip: skipReason }, async () => {
+test('sesiones: token único, caducidad posterior a la creación y cascada', async (t) => {
+  if (skipIfNoDb(t)) return;
   const u = await pool!.query(
     `INSERT INTO users (email, display_name, password_hash) VALUES ('c@example.com', 'C', 'x') RETURNING id`,
   );
@@ -83,4 +94,25 @@ test('sesiones: token único, caducidad posterior a la creación y cascada', { s
   await pool!.query(`DELETE FROM users WHERE id = $1`, [u.rows[0].id]);
   const left = await pool!.query(`SELECT count(*)::int AS n FROM sessions`);
   assert.equal(left.rows[0].n, 0);
+});
+
+test('findCommunityByHost: encuentra por host exacto y devuelve el estado', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const a = await pool!.query(`INSERT INTO communities (slug, name) VALUES ('res-a', 'Res A') RETURNING id`);
+  const b = await pool!.query(
+    `INSERT INTO communities (slug, name, status) VALUES ('res-b', 'Res B', 'suspended') RETURNING id`,
+  );
+  await pool!.query(
+    `INSERT INTO community_domains (community_id, host, is_primary) VALUES ($1, 'res-a.localhost', true), ($2, 'res-b.localhost', true)`,
+    [a.rows[0].id, b.rows[0].id],
+  );
+
+  const found = await findCommunityByHost(pool!, 'res-a.localhost');
+  assert.equal(found?.id, a.rows[0].id);
+  assert.equal(found?.status, 'active');
+  assert.equal((await findCommunityByHost(pool!, 'res-b.localhost'))?.status, 'suspended');
+  assert.equal(await findCommunityByHost(pool!, 'nadie.localhost'), null);
+  // Un host que solo es prefijo o sufijo de otro no debe coincidir.
+  assert.equal(await findCommunityByHost(pool!, 'res-a.localhost.evil.com'), null);
+  assert.equal(await findCommunityByHost(pool!, 'res-a'), null);
 });
