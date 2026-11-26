@@ -2,13 +2,22 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, setCsrfToken, type CommunitySummary, type CreatedCommunity, type Me } from '../../lib/api';
+import {
+  api,
+  setCsrfToken,
+  type AccountSummary,
+  type CommunitySummary,
+  type CreatedCommunity,
+  type Me,
+} from '../../lib/api';
 
 export default function PanelPage() {
   const router = useRouter();
   const [me, setMe] = useState<Me['user'] | undefined>();
   const [communities, setCommunities] = useState<CommunitySummary[]>([]);
+  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [loadError, setLoadError] = useState<string | undefined>();
+  const [accountsError, setAccountsError] = useState<string | undefined>();
 
   const [slug, setSlug] = useState('');
   const [name, setName] = useState('');
@@ -17,13 +26,24 @@ export default function PanelPage() {
   const [created, setCreated] = useState<CreatedCommunity | undefined>();
   const [busy, setBusy] = useState(false);
 
-  const loadCommunities = useCallback(async () => {
-    const result = await api<{ communities: CommunitySummary[] }>('/communities');
+  // El propietario ve todas las comunidades; el resto, solo las que administra.
+  const loadCommunities = useCallback(async (role: Me['user']['role']) => {
+    const result = await api<{ communities: CommunitySummary[] }>(role === 'owner' ? '/communities' : '/communities/mine');
     if (result.ok) {
       setCommunities(result.data.communities);
       setLoadError(undefined);
     } else {
       setLoadError(result.message);
+    }
+  }, []);
+
+  const loadAccounts = useCallback(async () => {
+    const result = await api<{ users: AccountSummary[] }>('/platform/users');
+    if (result.ok) {
+      setAccounts(result.data.users);
+      setAccountsError(undefined);
+    } else {
+      setAccountsError(result.message);
     }
   }, []);
 
@@ -38,12 +58,13 @@ export default function PanelPage() {
       }
       setCsrfToken(result.data.csrfToken);
       setMe(result.data.user);
-      await loadCommunities();
+      await loadCommunities(result.data.user.role);
+      if (result.data.user.role === 'owner') await loadAccounts();
     })();
     return () => {
       cancelled = true;
     };
-  }, [router, loadCommunities]);
+  }, [router, loadCommunities, loadAccounts]);
 
   async function createCommunity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,7 +72,8 @@ export default function PanelPage() {
     setFormError(undefined);
     setCreated(undefined);
     const body: { slug: string; name: string; adminEmail?: string } = { slug, name };
-    if (adminEmail.trim()) body.adminEmail = adminEmail;
+    // Solo el propietario puede indicar otro administrador; para el resto es siempre su cuenta.
+    if (me?.role === 'owner' && adminEmail.trim()) body.adminEmail = adminEmail;
     const result = await api<{ community: CreatedCommunity }>('/communities', { method: 'POST', body });
     setBusy(false);
     if (!result.ok) {
@@ -62,7 +84,10 @@ export default function PanelPage() {
     setSlug('');
     setName('');
     setAdminEmail('');
-    await loadCommunities();
+    if (me) {
+      await loadCommunities(me.role);
+      if (me.role === 'owner') await loadAccounts();
+    }
   }
 
   async function toggleStatus(community: CommunitySummary) {
@@ -72,7 +97,19 @@ export default function PanelPage() {
       setLoadError(result.message);
       return;
     }
-    await loadCommunities();
+    if (me) await loadCommunities(me.role);
+  }
+
+  async function toggleCreator(account: AccountSummary) {
+    const result = await api(`/platform/users/${account.id}`, {
+      method: 'PATCH',
+      body: { canCreateCommunities: !account.canCreateCommunities },
+    });
+    if (!result.ok) {
+      setAccountsError(result.message);
+      return;
+    }
+    await loadAccounts();
   }
 
   async function logout() {
@@ -89,11 +126,13 @@ export default function PanelPage() {
     );
   }
 
+  const isOwner = me.role === 'owner';
+
   return (
     <main className="wide">
       <header className="topbar">
         <div>
-          <h1>Panel central</h1>
+          <h1>{isOwner ? 'Panel central' : 'Mis comunidades'}</h1>
           <p className="subtitle">Sesión de {me.displayName}</p>
         </div>
         <button type="button" className="secondary" onClick={logout}>
@@ -103,6 +142,12 @@ export default function PanelPage() {
 
       <section>
         <h2>Nueva comunidad</h2>
+        {!me.canCreateCommunities ? (
+          <p className="notice">
+            Todavía no tienes permiso para crear comunidades. Pídeselo al propietario de la plataforma; cuando te lo
+            active, recarga esta página.
+          </p>
+        ) : (
         <form className="card form" onSubmit={createCommunity}>
           <label>
             Identificador (subdominio)
@@ -120,10 +165,12 @@ export default function PanelPage() {
             Nombre
             <input required maxLength={80} placeholder="Mi foro" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
-          <label>
-            Email del administrador <span className="muted">(opcional; por defecto, tu cuenta)</span>
-            <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} />
-          </label>
+          {isOwner && (
+            <label>
+              Email del administrador <span className="muted">(opcional; por defecto, tu cuenta)</span>
+              <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} />
+            </label>
+          )}
           {formError && <p className="error">{formError}</p>}
           {created && (
             <p className="success">
@@ -134,13 +181,14 @@ export default function PanelPage() {
             {busy ? 'Creando…' : 'Crear comunidad'}
           </button>
         </form>
+        )}
       </section>
 
       <section>
-        <h2>Comunidades</h2>
+        <h2>{isOwner ? 'Todas las comunidades' : 'Tus comunidades'}</h2>
         {loadError && <p className="error">{loadError}</p>}
         {communities.length === 0 && !loadError ? (
-          <p className="muted">Todavía no hay comunidades.</p>
+          <p className="muted">{isOwner ? 'Todavía no hay comunidades.' : 'Todavía no administras ninguna comunidad.'}</p>
         ) : (
           <div className="card table-wrap">
             <table>
@@ -178,6 +226,54 @@ export default function PanelPage() {
           </div>
         )}
       </section>
+      {isOwner && (
+        <section>
+          <h2>Cuentas</h2>
+          {accountsError && <p className="error">{accountsError}</p>}
+          {accounts.length === 0 && !accountsError ? (
+            <p className="muted">Todavía no hay cuentas.</p>
+          ) : (
+            <div className="card table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Administra</th>
+                    <th>Puede crear</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {accounts.map((account) => (
+                    <tr key={account.id}>
+                      <td>{account.displayName}</td>
+                      <td>{account.email}</td>
+                      <td>{account.adminOf}</td>
+                      <td>
+                        {account.isPlatformOwner ? (
+                          <span className="badge active">Propietario</span>
+                        ) : (
+                          <span className={`badge ${account.canCreateCommunities ? 'active' : 'neutral'}`}>
+                            {account.canCreateCommunities ? 'Sí' : 'No'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="actions">
+                        {!account.isPlatformOwner && (
+                          <button type="button" className="secondary" onClick={() => toggleCreator(account)}>
+                            {account.canCreateCommunities ? 'Retirar permiso' : 'Dar permiso'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </main>
   );
 }

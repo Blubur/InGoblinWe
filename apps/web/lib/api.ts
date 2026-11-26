@@ -4,7 +4,13 @@
 export type ApiResult<T> = { ok: true; status: number; data: T } | { ok: false; status: number; message: string };
 
 export interface Me {
-  user: { id: string; email: string; displayName: string; role: 'owner' | 'admin' | 'member' };
+  user: {
+    id: string;
+    email: string;
+    displayName: string;
+    role: 'owner' | 'user' | 'admin' | 'member';
+    canCreateCommunities: boolean;
+  };
   csrfToken: string;
 }
 
@@ -16,6 +22,18 @@ export interface CommunitySummary {
   primaryHost: string | null;
   memberCount: number;
   createdAt: string;
+}
+
+/** Cuenta tal como la ve el propietario en su panel. */
+export interface AccountSummary {
+  id: string;
+  email: string;
+  displayName: string;
+  isPlatformOwner: boolean;
+  canCreateCommunities: boolean;
+  status: 'active' | 'disabled';
+  createdAt: string;
+  adminOf: number;
 }
 
 export interface CreatedCommunity {

@@ -29,7 +29,7 @@ export default function LoginPage() {
   return (
     <main>
       <h1>Panel central</h1>
-      <p className="subtitle">Entra con la cuenta del propietario de la plataforma</p>
+      <p className="subtitle">Entra con tu cuenta para gestionar tus comunidades</p>
 
       <form className="card form" onSubmit={submit}>
         <label>
@@ -52,6 +52,9 @@ export default function LoginPage() {
         </button>
       </form>
 
+      <p className="hint">
+        ¿No tienes cuenta? <Link href="/register">Crea una</Link>
+      </p>
       <p className="hint">
         <Link href="/">Estado de la infraestructura</Link>
       </p>
