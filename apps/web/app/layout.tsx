@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Goblins',
-  description: 'Plataforma de foros y comunidades',
+  description: 'Para que podamos hacer todos los foros que queramos <3',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
