@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import {
   createCommunity,
+  findMembershipRole,
   findUserByEmail,
   listCommunities,
   setCommunityStatus,
@@ -50,7 +51,20 @@ export class CommunitiesService {
     return listCommunities(this.pool);
   }
 
-  async setStatus(id: string, status: CommunityStatus): Promise<CommunityRef> {
+  /** Comunidades que administra una cuenta. */
+  listAdministeredBy(userId: string): Promise<CommunitySummary[]> {
+    return listCommunities(this.pool, { adminUserId: userId });
+  }
+
+  /**
+   * Cambia el estado de una comunidad. El propietario puede con cualquiera; el
+   * resto, solo con las que administra. Quien no administra la comunidad recibe
+   * el mismo 404 que si no existiera, para no revelar qué comunidades hay.
+   */
+  async setStatus(id: string, status: CommunityStatus, actor: { userId: string; isOwner: boolean }): Promise<CommunityRef> {
+    if (!actor.isOwner && (await findMembershipRole(this.pool, id, actor.userId)) !== 'admin') {
+      throw new NotFoundException('Comunidad no encontrada');
+    }
     const community = await setCommunityStatus(this.pool, id, status);
     if (!community) throw new NotFoundException('Comunidad no encontrada');
     return community;

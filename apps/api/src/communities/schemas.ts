@@ -48,7 +48,10 @@ const email = z
 export const createCommunitySchema = z.object({
   slug,
   name: z.string().trim().min(1, 'El nombre es obligatorio').max(80, 'Máximo 80 caracteres'),
-  /** Cuenta que administrará la comunidad. Si se omite, la del propietario que la crea. */
+  /**
+   * Cuenta que administrará la comunidad. Si se omite, la de quien la crea. Solo el
+   * propietario de la plataforma puede indicar una cuenta distinta de la suya.
+   */
   adminEmail: email.optional(),
 });
 

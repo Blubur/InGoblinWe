@@ -102,6 +102,105 @@ test('controlador: el propietario con datos inválidos recibe 400', async () => 
   );
 });
 
+// ---------- Controlador: cuentas normales con y sin permiso de creador ----------
+
+const userAuth: AuthContext = { userId: 'u2', email: 'Amigo@example.com', displayName: 'Amigo', role: 'user', canCreateCommunities: false, csrfToken: 'x' };
+const creatorAuth: AuthContext = { ...userAuth, canCreateCommunities: true };
+
+function recordingService() {
+  const calls: { method: string; args: unknown[] }[] = [];
+  const service = {
+    create: async (...args: unknown[]) => {
+      calls.push({ method: 'create', args });
+      return { id: 'c1', slug: 'foro', name: 'X', status: 'active', host: 'foro.goblins.test' };
+    },
+    list: async (...args: unknown[]) => {
+      calls.push({ method: 'list', args });
+      return [];
+    },
+    listAdministeredBy: async (...args: unknown[]) => {
+      calls.push({ method: 'listAdministeredBy', args });
+      return [];
+    },
+    setStatus: async (...args: unknown[]) => {
+      calls.push({ method: 'setStatus', args });
+      return { id: 'c1', slug: 'foro', name: 'X', status: 'suspended' };
+    },
+  } as unknown as CommunitiesService;
+  return { service, calls };
+}
+
+const COMMUNITY_ID = '3f8f2f0e-6f43-4b7e-8d3a-0a5c9a1b2c3d';
+
+test('controlador: una cuenta sin permiso de creador no puede crear (403) y el servicio no se toca', async () => {
+  const { service, calls } = recordingService();
+  const controller = new CommunitiesController(service);
+  await assert.rejects(
+    controller.create(requestOf(platform, userAuth), { slug: 'foro', name: 'X' }),
+    (e) => e instanceof ForbiddenException,
+  );
+  assert.equal(calls.length, 0);
+});
+
+test('controlador: una cuenta con permiso crea y es su propia administradora', async () => {
+  const { service, calls } = recordingService();
+  const controller = new CommunitiesController(service);
+  await controller.create(requestOf(platform, creatorAuth), { slug: 'foro', name: 'X' });
+  assert.equal(calls[0]?.method, 'create');
+  assert.equal(calls[0]?.args[1], creatorAuth.email);
+  // Indicar su propio email como administrador es redundante, pero no es un error (da igual mayúsculas).
+  await controller.create(requestOf(platform, creatorAuth), { slug: 'foro', name: 'X', adminEmail: 'amigo@example.com' });
+  assert.equal(calls.length, 2);
+});
+
+test('controlador: un creador no puede nombrar administrador a otra cuenta, pero el propietario sí', async () => {
+  const { service, calls } = recordingService();
+  const controller = new CommunitiesController(service);
+  await assert.rejects(
+    controller.create(requestOf(platform, creatorAuth), { slug: 'foro', name: 'X', adminEmail: 'otro@example.com' }),
+    (e) => e instanceof ForbiddenException,
+  );
+  assert.equal(calls.length, 0);
+  await controller.create(requestOf(platform, ownerAuth), { slug: 'foro', name: 'X', adminEmail: 'otro@example.com' });
+  assert.equal(calls.length, 1);
+});
+
+test('controlador: el listado completo es solo del propietario; una cuenta normal usa /mine', async () => {
+  const { service, calls } = recordingService();
+  const controller = new CommunitiesController(service);
+  await assert.rejects(controller.list(requestOf(platform, creatorAuth)), (e) => e instanceof ForbiddenException);
+  assert.equal(calls.length, 0);
+
+  await controller.listMine(requestOf(platform, userAuth));
+  assert.deepEqual(calls[0], { method: 'listAdministeredBy', args: ['u2'] });
+  // El propietario también ve solo las suyas en /mine.
+  await controller.listMine(requestOf(platform, ownerAuth));
+  assert.deepEqual(calls[1], { method: 'listAdministeredBy', args: ['u1'] });
+});
+
+test('controlador: /mine exige sesión del panel central', async () => {
+  const controller = new CommunitiesController(unusedService);
+  await assert.rejects(controller.listMine(requestOf(platform)), (e) => e instanceof UnauthorizedException);
+  await assert.rejects(controller.listMine(requestOf(inCommunity, userAuth)), (e) => e instanceof ForbiddenException);
+  await assert.rejects(
+    controller.listMine(requestOf(platform, { ...userAuth, role: 'member' })),
+    (e) => e instanceof ForbiddenException,
+  );
+});
+
+test('controlador: el cambio de estado pasa quién lo pide al servicio', async () => {
+  const { service, calls } = recordingService();
+  const controller = new CommunitiesController(service);
+  await controller.setStatus(requestOf(platform, userAuth), COMMUNITY_ID, { status: 'suspended' });
+  assert.deepEqual(calls[0]?.args, [COMMUNITY_ID, 'suspended', { userId: 'u2', isOwner: false }]);
+  await controller.setStatus(requestOf(platform, ownerAuth), COMMUNITY_ID, { status: 'active' });
+  assert.deepEqual(calls[1]?.args, [COMMUNITY_ID, 'active', { userId: 'u1', isOwner: true }]);
+  await assert.rejects(
+    controller.setStatus(requestOf(platform), COMMUNITY_ID, { status: 'active' }),
+    (e) => e instanceof UnauthorizedException,
+  );
+});
+
 // ---------- Servicio contra PostgreSQL real ----------
 
 let temp: TempDatabase | undefined;
@@ -179,10 +278,11 @@ test('servicio: un slug repetido da 409', async (t) => {
 test('servicio: suspender y reactivar; id inexistente da 404', async (t) => {
   if (skipIfNoDb(t)) return;
   const created = await service.create({ slug: 'suspendible', name: 'S' }, 'dueno@example.com');
-  assert.equal((await service.setStatus(created.id, 'suspended')).status, 'suspended');
-  assert.equal((await service.setStatus(created.id, 'active')).status, 'active');
+  const asOwner = { userId: ownerId, isOwner: true };
+  assert.equal((await service.setStatus(created.id, 'suspended', asOwner)).status, 'suspended');
+  assert.equal((await service.setStatus(created.id, 'active', asOwner)).status, 'active');
   await assert.rejects(
-    service.setStatus('00000000-0000-0000-0000-000000000000', 'suspended'),
+    service.setStatus('00000000-0000-0000-0000-000000000000', 'suspended', asOwner),
     (e) => e instanceof NotFoundException,
   );
 });
@@ -192,4 +292,40 @@ test('servicio: list incluye las comunidades creadas', async (t) => {
   await service.create({ slug: 'para-listar', name: 'L' }, 'dueno@example.com');
   const slugs = (await service.list()).map((c) => c.slug);
   assert.ok(slugs.includes('para-listar'));
+});
+
+test('servicio: una cuenta normal solo cambia el estado de las comunidades que administra', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const mk = async (email: string) =>
+    (await pool.query(`INSERT INTO users (email, display_name, password_hash) VALUES ($1, 'P', 'x') RETURNING id`, [email])).rows[0].id as string;
+  const ana = await mk('ana-estado@example.com');
+  const beto = await mk('beto-estado@example.com');
+  const deAna = await service.create({ slug: 'estado-de-ana', name: 'A' }, 'ana-estado@example.com');
+  const deBeto = await service.create({ slug: 'estado-de-beto', name: 'B' }, 'beto-estado@example.com');
+  const asAna = { userId: ana, isOwner: false };
+
+  assert.equal((await service.setStatus(deAna.id, 'suspended', asAna)).status, 'suspended');
+  assert.equal((await service.setStatus(deAna.id, 'active', asAna)).status, 'active');
+  // La de Beto: mismo 404 que si no existiera, y no cambia.
+  await assert.rejects(service.setStatus(deBeto.id, 'suspended', asAna), (e) => e instanceof NotFoundException);
+  const row = await pool.query(`SELECT status FROM communities WHERE id = $1`, [deBeto.id]);
+  assert.equal(row.rows[0].status, 'active');
+
+  // Ser solo miembro (no admin) tampoco basta.
+  await pool.query(`INSERT INTO memberships (community_id, user_id, role) VALUES ($1, $2, 'member')`, [deBeto.id, ana]);
+  await assert.rejects(service.setStatus(deBeto.id, 'suspended', asAna), (e) => e instanceof NotFoundException);
+
+  // El propietario sí puede con cualquiera.
+  assert.equal((await service.setStatus(deBeto.id, 'suspended', { userId: beto, isOwner: true })).status, 'suspended');
+});
+
+test('servicio: listAdministeredBy devuelve solo las comunidades que administra la cuenta', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const u = await pool.query(
+    `INSERT INTO users (email, display_name, password_hash) VALUES ('lista-mias@example.com', 'L', 'x') RETURNING id`,
+  );
+  await service.create({ slug: 'mia-1', name: 'M1' }, 'lista-mias@example.com');
+  await service.create({ slug: 'mia-2', name: 'M2' }, 'lista-mias@example.com');
+  const mine = (await service.listAdministeredBy(u.rows[0].id)).map((c) => c.slug).sort();
+  assert.deepEqual(mine, ['mia-1', 'mia-2']);
 });
