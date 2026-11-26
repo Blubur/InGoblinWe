@@ -1,7 +1,8 @@
 :root {
   --bg: #F9F5EB;
   --card: #2D4059;
-  --text: #eeeeee;
+  --text: #111111;
+  --text-card: #eeeeee;
   --muted: #747474;
   --ok: #319054;
   --fail: #EA5455;
