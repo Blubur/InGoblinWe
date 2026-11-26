@@ -8,6 +8,12 @@ export const envSchema = z.object({
   REDIS_URL: z.string().min(1, 'es obligatoria'),
   PLATFORM_BASE_DOMAIN: z.string().min(1).default('localhost'),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 90).default(24 * 7),
+  // Secreto que comparten la web y la API para que la API acepte el host original
+  // que reenvía el proxy de la web. Sin él, la API ignora ese host. Vacío = sin definir.
+  PROXY_SHARED_SECRET: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(32, 'debe tener al menos 32 caracteres').optional(),
+  ),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

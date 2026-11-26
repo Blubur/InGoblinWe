@@ -26,6 +26,7 @@ async function bootstrap(): Promise<void> {
       baseDomain: config.PLATFORM_BASE_DOMAIN,
       allowLoopback: config.NODE_ENV !== 'production',
       skipPathPrefixes: ['/api/v1/health'],
+      proxySecret: config.PROXY_SHARED_SECRET,
     }),
   );
   app.use(

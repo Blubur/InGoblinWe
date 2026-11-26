@@ -235,7 +235,7 @@ interface Outcome {
 
 async function callMiddleware(
   tenant: Tenant,
-  request: { method: string; host?: string; origin?: string; cookie?: string; csrf?: string },
+  request: { method: string; host?: string; origin?: string; cookie?: string; csrf?: string; effectiveHost?: string },
 ): Promise<Outcome> {
   const middleware = createAuthMiddleware({ service, cookieName: 'goblins_session' });
   const headers: Record<string, string> = {};
@@ -243,7 +243,7 @@ async function callMiddleware(
   if (request.origin) headers.origin = request.origin;
   if (request.cookie) headers.cookie = request.cookie;
   if (request.csrf) headers['x-csrf-token'] = request.csrf;
-  const req = { method: request.method, headers, tenant } as unknown as AuthRequest;
+  const req = { method: request.method, headers, tenant, effectiveHost: request.effectiveHost } as unknown as AuthRequest;
   const out: Outcome = { nextCalled: false, req };
   const res = {
     status(code: number) {
@@ -352,4 +352,27 @@ test('quien es miembro de dos comunidades no puede usar la sesión de una en la 
   await register(foroB, email); // misma cuenta, miembro de ambas
   assert.ok(await service.resolve(foroA, inA.token));
   assert.equal(await service.resolve(foroB, inA.token), null);
+});
+
+test('middleware: el Origin se compara con el host efectivo (el reenviado por el proxy), no con el Host interno', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const viaProxy = await callMiddleware(foroA, {
+    method: 'POST',
+    host: 'api.interna',
+    effectiveHost: 'foro-a.localhost',
+    origin: 'http://foro-a.localhost:3000',
+  });
+  assert.equal(viaProxy.nextCalled, true);
+
+  const wrongOrigin = await callMiddleware(foroA, {
+    method: 'POST',
+    host: 'api.interna',
+    effectiveHost: 'foro-a.localhost',
+    origin: 'https://evil.com',
+  });
+  assert.equal(wrongOrigin.status, 403);
+
+  // Sin host efectivo se sigue usando Host, como antes.
+  const direct = await callMiddleware(foroA, { method: 'POST', host: 'api.interna', origin: 'http://foro-a.localhost:3000' });
+  assert.equal(direct.status, 403);
 });

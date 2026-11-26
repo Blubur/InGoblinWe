@@ -80,6 +80,22 @@ Son archivos SQL en `packages/database/migrations/` con el formato `NNNN_descrip
 
 Todo se configura con variables de entorno, validadas al arrancar (`packages/core/src/env.ts`). Parte de `.env.example`. Si falta algo o es inválido, la API se detiene con un mensaje que nombra la variable.
 
+## Panel central en la web
+
+La web (Next.js) no habla con la API desde el navegador: reenvía todo `/api/v1/*` a la API desde su propio servidor (`apps/web/app/api/v1/[...path]/route.ts`). Así el navegador solo usa un origen, no hace falta CORS y la cookie de sesión queda atada al host de la web.
+
+Como la API decide la comunidad por el host, y detrás del proxy solo ve el host de la web, la web le reenvía el host original en la cabecera `X-Goblins-Host` junto con el secreto `X-Goblins-Proxy-Secret`. **La API solo hace caso a ese host si el secreto coincide**; si llega un host reenviado con un secreto incorrecto, responde 403, y si no hay secreto configurado, lo ignora.
+
+- `PROXY_SHARED_SECRET` (mínimo 32 caracteres) debe tener el mismo valor en la API y en la web. En local viene en `.env.example`; si tu `.env` es anterior, añade la línea. La web lo lee del `.env` de la raíz junto con `API_URL`, y solo esas dos variables.
+- Páginas: `/login` (cuenta del propietario) y `/panel` (crear, listar, suspender y reactivar comunidades).
+- Para entrar necesitas la cuenta del propietario: `pnpm owner:create`.
+
+En producción, para que el panel central funcione:
+
+1. Genera un secreto: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+2. Ponlo como `PROXY_SHARED_SECRET` en la API (Railway) y en la web (Vercel).
+3. Pon en `PLATFORM_BASE_DOMAIN` de la API el host público de la web, sin `https://` ni barra (por ejemplo, el de Vercel). Con un `*.vercel.app` el panel central funciona, pero los subdominios de las comunidades no: para eso hace falta un dominio propio con DNS comodín.
+
 ## API de comunidades (panel central)
 
 Solo funciona desde el host de la plataforma (no desde el de una comunidad) y con la sesión del propietario. Cada petición que modifica datos necesita la cabecera `X-CSRF-Token` que devuelve el login.

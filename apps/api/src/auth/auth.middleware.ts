@@ -26,7 +26,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions) {
     const req = request as AuthRequest;
     try {
       const modifies = !SAFE_METHODS.has(req.method);
-      if (modifies && !isOriginAllowed(req.headers.origin, req.headers.host)) {
+      if (modifies && !isOriginAllowed(req.headers.origin, req.effectiveHost ?? req.headers.host)) {
         return reject(res, 'Origen no permitido');
       }
 

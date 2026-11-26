@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { classifyHost, normalizeHost } from '@goblins/core';
 import { findCommunityByHost, type CommunityRef } from '@goblins/database';
+import { resolveEffectiveHost } from './forwarded-host';
 import type { Tenant, TenantRequest } from './tenant';
 
 export interface TenantMiddlewareOptions {
@@ -10,6 +11,11 @@ export interface TenantMiddlewareOptions {
   allowLoopback: boolean;
   /** Rutas que no dependen del host (sondas de salud). */
   skipPathPrefixes?: string[];
+  /**
+   * Secreto compartido con el proxy de la web. Si se define, la API acepta el
+   * host original que reenvía ese proxy; si no, solo usa la cabecera Host.
+   */
+  proxySecret?: string;
 }
 
 function reject(res: Response, statusCode: number, message: string): void {
@@ -21,8 +27,8 @@ function reject(res: Response, statusCode: number, message: string): void {
  * petición a partir de la cabecera Host, y lo deja en req.tenant. Todo lo que
  * venga después puede fiarse de req.tenant y no debe volver a leer el Host.
  *
- * Nota: no se usa X-Forwarded-Host. Cuando haya un proxy inverso delante habrá
- * que decidir explícitamente en qué proxies se confía.
+ * Nota: no se usa X-Forwarded-Host. El único host reenviado que se acepta es el
+ * del proxy de la web, y solo si presenta el secreto compartido (proxySecret).
  */
 export function createTenantMiddleware(options: TenantMiddlewareOptions) {
   const skip = options.skipPathPrefixes ?? [];
@@ -35,7 +41,11 @@ export function createTenantMiddleware(options: TenantMiddlewareOptions) {
         return next();
       }
 
-      const host = normalizeHost(req.headers.host);
+      const effective = resolveEffectiveHost(req.headers, options.proxySecret);
+      if (!effective.ok) return reject(res, 403, effective.message);
+      req.effectiveHost = effective.host;
+
+      const host = normalizeHost(effective.host);
       if (!host) return reject(res, 400, 'Cabecera Host no válida');
 
       if (classifyHost(host, options) === 'platform') {

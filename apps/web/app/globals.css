@@ -94,3 +94,157 @@ h1 {
 .summary.fail {
   color: var(--fail);
 }
+
+/* ---------- Panel central y login ---------- */
+
+main.wide {
+  max-width: 880px;
+}
+
+h2 {
+  margin: 40px 0 12px;
+  font-size: 1.15rem;
+}
+
+a {
+  color: var(--ok);
+}
+
+.hint {
+  margin-top: 24px;
+  font-size: 0.9rem;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.success {
+  margin: 0;
+  color: var(--ok);
+  font-size: 0.9rem;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #2a3d31;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+}
+
+input:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--ok);
+  outline-offset: 2px;
+}
+
+button {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ok);
+  color: #0f1a14;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid #2a3d31;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.topbar .subtitle {
+  margin-bottom: 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  padding: 8px 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid #22352a;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+td.actions {
+  text-align: right;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.badge.active {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--ok);
+}
+
+.badge.suspended {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--fail);
+}

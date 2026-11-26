@@ -45,3 +45,14 @@ test('SESSION_TTL_HOURS tiene un valor por defecto y rechaza valores absurdos', 
   assert.equal(parseConfig({ ...base, SESSION_TTL_HOURS: '24' }).SESSION_TTL_HOURS, 24);
   assert.throws(() => parseConfig({ ...base, SESSION_TTL_HOURS: '0' }), /SESSION_TTL_HOURS/);
 });
+
+test('PROXY_SHARED_SECRET es opcional, vacío cuenta como sin definir y exige 32 caracteres', () => {
+  assert.equal(parseConfig(valid).PROXY_SHARED_SECRET, undefined);
+  assert.equal(parseConfig({ ...valid, PROXY_SHARED_SECRET: '' }).PROXY_SHARED_SECRET, undefined);
+  const secret = 'x'.repeat(32);
+  assert.equal(parseConfig({ ...valid, PROXY_SHARED_SECRET: secret }).PROXY_SHARED_SECRET, secret);
+  assert.throws(
+    () => parseConfig({ ...valid, PROXY_SHARED_SECRET: 'corto' }),
+    (error: unknown) => error instanceof ConfigError && error.message.includes('PROXY_SHARED_SECRET'),
+  );
+});

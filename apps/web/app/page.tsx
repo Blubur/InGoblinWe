@@ -1,4 +1,6 @@
-// Página de estado de la Fase 1: comprueba que web, API, PostgreSQL y Redis están conectados.
+// Página de estado: comprueba que web, API, PostgreSQL y Redis están conectados.
+import Link from 'next/link';
+
 export const dynamic = 'force-dynamic';
 
 const API_URL = process.env.API_URL ?? 'http://127.0.0.1:4000';
@@ -44,7 +46,7 @@ export default async function Home() {
   return (
     <main>
       <h1>Goblins</h1>
-      <p className="subtitle">Estado de la infraestructura local</p>
+      <p className="subtitle">Estado de la infraestructura</p>
 
       <ul className="checks">
         <Row label="Web" check={{ ok: true, latencyMs: 0 }} />
@@ -56,6 +58,9 @@ export default async function Home() {
       {'unreachable' in result && <p className="error">{result.unreachable}</p>}
       <p className={allOk ? 'summary ok' : 'summary fail'}>
         {allOk ? 'Todo en marcha.' : 'Hay servicios sin responder.'}
+      </p>
+      <p className="hint">
+        <Link href="/panel">Entrar al panel central</Link>
       </p>
     </main>
   );
