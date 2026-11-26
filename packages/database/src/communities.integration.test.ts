@@ -7,6 +7,7 @@ import {
   listCommunities,
   setCommunityStatus,
 } from './communities';
+import { listUsers, setCanCreateCommunities } from './users';
 import { createTempDatabase, type TempDatabase } from './testing';
 
 loadRootEnv();
@@ -153,4 +154,56 @@ test('setCommunityStatus suspende, reactiva y devuelve null si no existe', async
   const active = await setCommunityStatus(pool, created.community.id, 'active');
   assert.equal(active?.status, 'active');
   assert.equal(await setCommunityStatus(pool, '00000000-0000-0000-0000-000000000000', 'suspended'), null);
+});
+
+test('listCommunities con adminUserId devuelve solo las que administra esa cuenta', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const pool = temp!.pool;
+  const ana = await newUser('ana-filtro@example.com');
+  const beto = await newUser('beto-filtro@example.com');
+  await createCommunity(pool, { slug: 'de-ana-1', name: 'A1', host: 'de-ana-1.goblins.test', adminUserId: ana });
+  await createCommunity(pool, { slug: 'de-ana-2', name: 'A2', host: 'de-ana-2.goblins.test', adminUserId: ana });
+  await createCommunity(pool, { slug: 'de-beto', name: 'B', host: 'de-beto.goblins.test', adminUserId: beto });
+  // Ana es solo miembro (no admin) de la de Beto: no debe aparecer entre las suyas.
+  const betoCommunity = await pool.query(`SELECT id FROM communities WHERE slug = 'de-beto'`);
+  await pool.query(`INSERT INTO memberships (community_id, user_id, role) VALUES ($1, $2, 'member')`, [
+    betoCommunity.rows[0].id,
+    ana,
+  ]);
+
+  const mine = await listCommunities(pool, { adminUserId: ana });
+  assert.deepEqual(mine.map((c) => c.slug).sort(), ['de-ana-1', 'de-ana-2']);
+
+  const nobody = await newUser('sin-foros@example.com');
+  assert.deepEqual(await listCommunities(pool, { adminUserId: nobody }), []);
+
+  const all = await listCommunities(pool);
+  assert.ok(all.some((c) => c.slug === 'de-beto') && all.some((c) => c.slug === 'de-ana-1'));
+});
+
+test('el permiso de crear comunidades empieza desactivado y se puede activar y desactivar', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const pool = temp!.pool;
+  const id = await newUser('permiso@example.com');
+  const find = async () => (await listUsers(pool)).find((u) => u.id === id);
+
+  assert.equal((await find())?.canCreateCommunities, false);
+  assert.equal(await setCanCreateCommunities(pool, id, true), true);
+  assert.equal((await find())?.canCreateCommunities, true);
+  assert.equal(await setCanCreateCommunities(pool, id, false), true);
+  assert.equal((await find())?.canCreateCommunities, false);
+  assert.equal(await setCanCreateCommunities(pool, '00000000-0000-0000-0000-000000000000', true), false);
+});
+
+test('listUsers cuenta las comunidades que administra cada cuenta y no expone el hash', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const pool = temp!.pool;
+  const id = await newUser('cuenta-lista@example.com');
+  await createCommunity(pool, { slug: 'cuenta-1', name: 'C1', host: 'cuenta-1.goblins.test', adminUserId: id });
+  await createCommunity(pool, { slug: 'cuenta-2', name: 'C2', host: 'cuenta-2.goblins.test', adminUserId: id });
+  const user = (await listUsers(pool)).find((u) => u.id === id);
+  assert.equal(user?.adminOf, 2);
+  assert.equal(user?.email, 'cuenta-lista@example.com');
+  assert.ok(!('passwordHash' in (user as object)));
+  assert.match(user!.createdAt, /^\d{4}-\d{2}-\d{2}T/);
 });

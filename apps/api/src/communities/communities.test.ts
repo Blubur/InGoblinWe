@@ -61,7 +61,7 @@ const unusedService = {
   },
 } as unknown as CommunitiesService;
 
-const ownerAuth: AuthContext = { userId: 'u1', email: 'dueno@example.com', displayName: 'Dueño', role: 'owner', csrfToken: 'x' };
+const ownerAuth: AuthContext = { userId: 'u1', email: 'dueno@example.com', displayName: 'Dueño', role: 'owner', canCreateCommunities: true, csrfToken: 'x' };
 const platform: Tenant = { kind: 'platform' };
 const inCommunity: Tenant = { kind: 'community', community: { id: 'c1', slug: 'foro', name: 'Foro', status: 'active' } };
 const requestOf = (tenant: Tenant | undefined, auth?: AuthContext) => ({ tenant, auth }) as unknown as AuthRequest;

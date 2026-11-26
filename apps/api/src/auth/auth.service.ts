@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import {
   addMembership,
   createSession,
@@ -34,6 +30,17 @@ export interface SessionResult {
 
 const INVALID_CREDENTIALS = 'Email o contraseña incorrectos';
 
+/** Rol de una cuenta en el panel central. */
+function platformRole(user: User): AuthRole {
+  return user.isPlatformOwner ? 'owner' : 'user';
+}
+
+/** El propietario siempre puede crear comunidades; el resto, solo con el permiso activado. */
+function canCreate(user: User, role: AuthRole): boolean {
+  if (role === 'owner') return true;
+  return role === 'user' && user.canCreateCommunities;
+}
+
 export class AuthService {
   constructor(
     private readonly pool: Pool,
@@ -42,15 +49,14 @@ export class AuthService {
   ) {}
 
   /**
-   * Alta en una comunidad. La cuenta es global: si el email ya existe, solo se
-   * añade la pertenencia a esta comunidad, y únicamente si la contraseña es la
-   * de esa cuenta. Quien no la conozca no averigua nada más que "no se pudo".
+   * Alta de una cuenta. En una comunidad añade además la pertenencia a ella; en el
+   * panel central crea solo la cuenta global. La cuenta es global: si el email ya
+   * existe, solo se añade la pertenencia (o se inicia sesión en el panel central),
+   * y únicamente si la contraseña es la de esa cuenta. Quien no la conozca no
+   * averigua nada más que "no se pudo".
    */
   async register(tenant: Tenant, input: RegisterInput): Promise<SessionResult> {
-    if (tenant.kind !== 'community') {
-      throw new ForbiddenException('El registro no está disponible en el panel central');
-    }
-    const communityId = tenant.community.id;
+    const communityId = tenant.kind === 'community' ? tenant.community.id : null;
     const unavailable = new ConflictException(
       'No se pudo completar el registro: el email ya está en uso o la contraseña no coincide con esa cuenta',
     );
@@ -62,6 +68,9 @@ export class AuthService {
         existing.status === 'active' && (await this.hasher.verify(existing.passwordHash, input.password));
       if (!matches) throw unavailable;
       user = existing;
+      if (communityId === null) {
+        throw new ConflictException('Ya tienes una cuenta: inicia sesión');
+      }
       if ((await findMembershipRole(this.pool, communityId, user.id)) !== null) {
         throw new ConflictException('Ya eres miembro de esta comunidad: inicia sesión');
       }
@@ -76,14 +85,14 @@ export class AuthService {
           passwordHash,
         });
         if (!newUser) return null; // Otro registro con el mismo email se coló entre medias.
-        await addMembership(client, communityId, newUser.id, 'member');
+        if (communityId !== null) await addMembership(client, communityId, newUser.id, 'member');
         return newUser;
       });
       if (!created) throw unavailable;
       user = created;
     }
 
-    return this.openSession(user, communityId, 'member');
+    return this.openSession(user, communityId, communityId === null ? platformRole(user) : 'member');
   }
 
   async login(tenant: Tenant, input: LoginInput): Promise<SessionResult> {
@@ -96,8 +105,7 @@ export class AuthService {
     if (!passwordOk || user.status !== 'active') throw new UnauthorizedException(INVALID_CREDENTIALS);
 
     if (tenant.kind === 'platform') {
-      if (!user.isPlatformOwner) throw new ForbiddenException('Esta cuenta no puede acceder al panel central');
-      return this.openSession(user, null, 'owner');
+      return this.openSession(user, null, platformRole(user));
     }
 
     const role = await findMembershipRole(this.pool, tenant.community.id, user.id);
@@ -129,8 +137,7 @@ export class AuthService {
 
     let role: AuthRole;
     if (tenant.kind === 'platform') {
-      if (!user.isPlatformOwner) return null;
-      role = 'owner';
+      role = platformRole(user);
     } else {
       const membership = await findMembershipRole(this.pool, tenant.community.id, user.id);
       if (membership === null) return null;
@@ -142,6 +149,7 @@ export class AuthService {
       email: user.email,
       displayName: user.displayName,
       role,
+      canCreateCommunities: canCreate(user, role),
       csrfToken: deriveCsrfToken(token),
     };
   }
@@ -161,6 +169,7 @@ export class AuthService {
         email: user.email,
         displayName: user.displayName,
         role,
+        canCreateCommunities: canCreate(user, role),
         csrfToken: deriveCsrfToken(token),
       },
     };

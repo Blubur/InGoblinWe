@@ -22,7 +22,13 @@ import { readCookie, sessionCookieName, sessionCookieOptions } from './session-c
 
 function publicAuth(auth: AuthContext) {
   return {
-    user: { id: auth.userId, email: auth.email, displayName: auth.displayName, role: auth.role },
+    user: {
+      id: auth.userId,
+      email: auth.email,
+      displayName: auth.displayName,
+      role: auth.role,
+      canCreateCommunities: auth.canCreateCommunities,
+    },
     csrfToken: auth.csrfToken,
   };
 }

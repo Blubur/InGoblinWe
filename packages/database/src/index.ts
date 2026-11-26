@@ -7,11 +7,18 @@ export type {
   CommunitySummary,
   NewCommunity,
   CreateCommunityResult,
+  ListCommunitiesOptions,
 } from './communities';
 export type { Migration, MigrationResult, RunOptions } from './migrate';
 export type { Pool } from 'pg';
-export { createUser, findUserByEmail, findActiveUserById } from './users';
-export type { User, UserStatus, NewUser } from './users';
+export {
+  createUser,
+  findUserByEmail,
+  findActiveUserById,
+  listUsers,
+  setCanCreateCommunities,
+} from './users';
+export type { User, UserStatus, NewUser, UserSummary } from './users';
 export { addMembership, findMembershipRole } from './memberships';
 export type { MembershipRole } from './memberships';
 export { createSession, findActiveSession, deleteSession, deleteExpiredSessions } from './sessions';

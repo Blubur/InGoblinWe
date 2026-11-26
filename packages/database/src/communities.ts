@@ -92,15 +92,30 @@ interface SummaryRow extends CommunityRef {
   created_at: Date;
 }
 
-/** Todas las comunidades, de la más reciente a la más antigua, para el panel central. */
-export async function listCommunities(db: Queryable): Promise<CommunitySummary[]> {
+export interface ListCommunitiesOptions {
+  /** Si se indica, solo las comunidades que administra esa cuenta. */
+  adminUserId?: string;
+}
+
+/**
+ * Comunidades, de la más reciente a la más antigua. Sin opciones devuelve todas
+ * (panel del propietario); con adminUserId, solo las que administra esa cuenta.
+ */
+export async function listCommunities(
+  db: Queryable,
+  options: ListCommunitiesOptions = {},
+): Promise<CommunitySummary[]> {
   const result = await db.query<SummaryRow>(
     `SELECT c.id, c.slug, c.name, c.status, c.created_at,
             (SELECT d.host FROM community_domains d
               WHERE d.community_id = c.id AND d.is_primary) AS primary_host,
             (SELECT count(*)::int FROM memberships m WHERE m.community_id = c.id) AS member_count
        FROM communities c
+      WHERE $1::uuid IS NULL
+         OR EXISTS (SELECT 1 FROM memberships a
+                     WHERE a.community_id = c.id AND a.user_id = $1::uuid AND a.role = 'admin')
       ORDER BY c.created_at DESC, c.slug`,
+    [options.adminUserId ?? null],
   );
   return result.rows.map((row) => ({
     id: row.id,

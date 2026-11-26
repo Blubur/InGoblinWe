@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { NextFunction, Response } from 'express';
 import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { loadRootEnv } from '@goblins/core';
-import { createTempDatabase, type Pool, type TempDatabase } from '@goblins/database';
+import { createTempDatabase, setCanCreateCommunities, type Pool, type TempDatabase } from '@goblins/database';
 import type { Tenant } from '../tenant/tenant';
 import type { AuthRequest } from './auth';
 import { createAuthMiddleware } from './auth.middleware';
@@ -109,9 +109,37 @@ test('registrar el mismo email a la vez deja una sola cuenta', async (t) => {
   assert.ok(results.some((r) => r.status === 'fulfilled'));
 });
 
-test('el registro no existe en el panel central', async (t) => {
+test('registro en el panel central: crea una cuenta global sin permiso de crear ni membresías', async (t) => {
   if (skipIfNoDb(t)) return;
-  await rejectsWith(register(platform, newEmail()), ForbiddenException);
+  const email = newEmail();
+  const { token, auth } = await register(platform, email);
+  assert.equal(auth.role, 'user');
+  assert.equal(auth.canCreateCommunities, false);
+  const row = await pool.query(`SELECT id, can_create_communities, is_platform_owner FROM users WHERE email = $1`, [email]);
+  assert.equal(row.rows[0].can_create_communities, false);
+  assert.equal(row.rows[0].is_platform_owner, false);
+  const memberships = await pool.query(`SELECT count(*)::int AS n FROM memberships WHERE user_id = $1`, [row.rows[0].id]);
+  assert.equal(memberships.rows[0].n, 0);
+  assert.equal((await service.resolve(platform, token))?.email, email);
+});
+
+test('registro en el panel central: un email ya existente no revela nada y no abre sesión', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const email = newEmail();
+  await register(platform, email);
+  // Misma contraseña: ya tiene cuenta, que inicie sesión.
+  await rejectsWith(register(platform, email), ConflictException);
+  // Contraseña ajena: mismo tipo de error, sin sesión.
+  await rejectsWith(register(platform, email, 'otra-contraseña-larga-2'), ConflictException);
+});
+
+test('registro en el panel central: una cuenta de una comunidad no se registra de nuevo, pero entra con login', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const email = newEmail();
+  await register(foroA, email);
+  await rejectsWith(register(platform, email), ConflictException);
+  const { auth } = await service.login(platform, { email, password: PASSWORD });
+  assert.equal(auth.role, 'user');
 });
 
 // ---------- Login ----------
@@ -152,11 +180,13 @@ test('login: quien no es miembro de la comunidad recibe 403', async (t) => {
   await rejectsWith(service.login(foroB, { email, password: PASSWORD }), ForbiddenException);
 });
 
-test('panel central: solo entra el propietario de la plataforma', async (t) => {
+test('panel central: el propietario entra como owner y puede crear siempre; el resto como user', async (t) => {
   if (skipIfNoDb(t)) return;
   const normal = newEmail();
   await register(foroA, normal);
-  await rejectsWith(service.login(platform, { email: normal, password: PASSWORD }), ForbiddenException);
+  const asUser = await service.login(platform, { email: normal, password: PASSWORD });
+  assert.equal(asUser.auth.role, 'user');
+  assert.equal(asUser.auth.canCreateCommunities, false);
 
   const owner = newEmail();
   const hash = await new PasswordHasher({ memoryCost: 8, timeCost: 1 }).hash(PASSWORD);
@@ -166,6 +196,50 @@ test('panel central: solo entra el propietario de la plataforma', async (t) => {
   );
   const { auth } = await service.login(platform, { email: owner, password: PASSWORD });
   assert.equal(auth.role, 'owner');
+  assert.equal(auth.canCreateCommunities, true);
+});
+
+test('panel central: una cuenta desactivada no entra', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const email = newEmail();
+  await register(platform, email);
+  await pool.query(`UPDATE users SET status = 'disabled' WHERE email = $1`, [email]);
+  await rejectsWith(service.login(platform, { email, password: PASSWORD }), UnauthorizedException);
+});
+
+test('el permiso de crear comunidades se activa y se retira en caliente, sin volver a iniciar sesión', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const email = newEmail();
+  const { token, auth } = await register(platform, email);
+  assert.equal((await service.resolve(platform, token))?.canCreateCommunities, false);
+
+  assert.equal(await setCanCreateCommunities(pool, auth.userId, true), true);
+  const enabled = await service.resolve(platform, token);
+  assert.equal(enabled?.role, 'user');
+  assert.equal(enabled?.canCreateCommunities, true);
+
+  await setCanCreateCommunities(pool, auth.userId, false);
+  assert.equal((await service.resolve(platform, token))?.canCreateCommunities, false);
+});
+
+test('el permiso de crear comunidades no se hereda dentro de una comunidad', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const email = newEmail();
+  const { auth } = await register(foroA, email);
+  await setCanCreateCommunities(pool, auth.userId, true);
+  const inCommunity = await service.login(foroA, { email, password: PASSWORD });
+  assert.equal(inCommunity.auth.role, 'member');
+  assert.equal(inCommunity.auth.canCreateCommunities, false);
+});
+
+test('la sesión del panel central de una cuenta normal no vale en ninguna comunidad, ni siendo miembro', async (t) => {
+  if (skipIfNoDb(t)) return;
+  const email = newEmail();
+  await register(foroA, email);
+  const { token } = await service.login(platform, { email, password: PASSWORD });
+  assert.ok(await service.resolve(platform, token));
+  assert.equal(await service.resolve(foroA, token), null);
+  assert.equal(await service.resolve(foroB, token), null);
 });
 
 // ---------- Sesiones y aislamiento ----------
