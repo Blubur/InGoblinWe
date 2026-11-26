@@ -4,6 +4,9 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigError, loadRootEnv, parseConfig } from '@goblins/core';
 import { findCommunityByHost, type Pool } from '@goblins/database';
 import { AppModule } from './app.module';
+import { AuthService } from './auth/auth.service';
+import { createAuthMiddleware } from './auth/auth.middleware';
+import { sessionCookieName } from './auth/session-cookie';
 import { DB_POOL } from './infra/tokens';
 import { createTenantMiddleware } from './tenant/tenant.middleware';
 
@@ -23,6 +26,12 @@ async function bootstrap(): Promise<void> {
       baseDomain: config.PLATFORM_BASE_DOMAIN,
       allowLoopback: config.NODE_ENV !== 'production',
       skipPathPrefixes: ['/api/v1/health'],
+    }),
+  );
+  app.use(
+    createAuthMiddleware({
+      service: app.get(AuthService),
+      cookieName: sessionCookieName(config.NODE_ENV === 'production'),
     }),
   );
   app.enableShutdownHooks();

@@ -38,3 +38,10 @@ test('parseDatabaseUrl solo exige DATABASE_URL', () => {
   assert.equal(parseDatabaseUrl({ DATABASE_URL: valid.DATABASE_URL }), valid.DATABASE_URL);
   assert.throws(() => parseDatabaseUrl({}), ConfigError);
 });
+
+test('SESSION_TTL_HOURS tiene un valor por defecto y rechaza valores absurdos', () => {
+  const base = { DATABASE_URL: 'postgresql://x', REDIS_URL: 'redis://x' };
+  assert.equal(parseConfig(base).SESSION_TTL_HOURS, 168);
+  assert.equal(parseConfig({ ...base, SESSION_TTL_HOURS: '24' }).SESSION_TTL_HOURS, 24);
+  assert.throws(() => parseConfig({ ...base, SESSION_TTL_HOURS: '0' }), /SESSION_TTL_HOURS/);
+});

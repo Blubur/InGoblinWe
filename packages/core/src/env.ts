@@ -7,6 +7,7 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'es obligatoria'),
   REDIS_URL: z.string().min(1, 'es obligatoria'),
   PLATFORM_BASE_DOMAIN: z.string().min(1).default('localhost'),
+  SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24 * 90).default(24 * 7),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

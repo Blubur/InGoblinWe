@@ -7,7 +7,8 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
-    "test": "tsc -p tsconfig.json --outDir dist-test && node --test \"dist-test/**/*.test.js\""
+    "test": "tsc -p tsconfig.json --outDir dist-test && node --test \"dist-test/**/*.test.js\"",
+    "owner:create": "node dist/cli/create-owner.js"
   },
   "dependencies": {
     "@goblins/core": "workspace:*",
@@ -15,9 +16,11 @@
     "@nestjs/common": "^12.6.0",
     "@nestjs/core": "^12.6.0",
     "@nestjs/platform-express": "^12.6.0",
+    "@node-rs/argon2": "^2.2.2",
     "ioredis": "^6.1.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.15",

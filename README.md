@@ -2,7 +2,7 @@
 
 Plataforma para crear y administrar múltiples foros y comunidades con personalización avanzada. Uso privado e inicialmente gratuito.
 
-**Estado: Fase 1 (infraestructura). Código escrito, pendiente de verificar en local.** Consulta [los criterios de cierre](#criterios-de-cierre-de-la-fase-1) antes de darla por terminada.
+**Estado:** Fase 1 (infraestructura) verificada. Fase 2 (identidad y comunidades) en curso: hechos el modelo de datos, la resolución de comunidad por host y la autenticación (registro, login, sesiones por host, CSRF). Pendiente: creación de comunidades desde el panel central.
 
 ## Requisitos
 
@@ -50,6 +50,7 @@ Si paras Docker (`pnpm docker:down`), `/health/ready` debe devolver HTTP 503 se�
 | `pnpm build:packages` | Recompila `core` y `database`. Hazlo si cambias algo en `packages/` |
 | `pnpm docker:up` / `docker:down` | Levanta / detiene PostgreSQL y Redis |
 | `pnpm db:migrate` | Aplica las migraciones pendientes |
+| `pnpm owner:create` | Crea la cuenta del propietario de la plataforma (pregunta email, nombre y contraseña; o usa `OWNER_EMAIL`, `OWNER_NAME` y `OWNER_PASSWORD`) |
 
 Para borrar los datos locales y empezar de cero: `docker compose down -v`.
 

@@ -13,6 +13,7 @@
     "dev": "pnpm run build:packages && pnpm -r --parallel --filter @goblins/api --filter @goblins/web run dev",
     "docker:up": "docker compose up -d --wait",
     "docker:down": "docker compose down",
-    "db:migrate": "pnpm --filter @goblins/database run migrate"
+    "db:migrate": "pnpm --filter @goblins/database run migrate",
+    "owner:create": "pnpm --filter @goblins/api run build && pnpm --filter @goblins/api run owner:create"
   }
 }
