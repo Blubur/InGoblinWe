@@ -24,7 +24,8 @@ async function forward(req: NextRequest): Promise<Response> {
     return await forwardToApi(req);
   } catch (error) {
     // Cualquier fallo inesperado del proxy: se registra (sin cabeceras ni secretos) y se responde en JSON.
-    console.error('[proxy] error inesperado:', error instanceof Error ? `${error.name}: ${error.message}` : String(error));
+    // Solo el tipo de error: el mensaje de una excepción puede contener el valor de una cabecera (el secreto).
+    console.error('[proxy] error inesperado:', error instanceof Error ? error.name : 'desconocido');
     return failure(500, 'Error interno del proxy');
   }
 }
@@ -32,6 +33,15 @@ async function forward(req: NextRequest): Promise<Response> {
 async function forwardToApi(req: NextRequest): Promise<Response> {
   const apiUrl = process.env.API_URL ?? 'http://127.0.0.1:4000';
   const secret = process.env.PROXY_SHARED_SECRET;
+
+  // Una cabecera HTTP no admite saltos de línea ni caracteres fuera del ASCII imprimible
+  // (típico error al pegar el secreto varias veces o con comillas). Se avisa sin escribir el valor.
+  if (secret !== undefined && secret !== '' && !/^[\x21-\x7e]+$/.test(secret)) {
+    console.error(
+      '[proxy] PROXY_SHARED_SECRET tiene caracteres no válidos (espacios, saltos de línea o símbolos raros): pégalo una sola vez, sin espacios, comillas ni saltos de línea',
+    );
+    return failure(500, 'Configuración del servidor incorrecta');
+  }
 
   let target: URL;
   try {
