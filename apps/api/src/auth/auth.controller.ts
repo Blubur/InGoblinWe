@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -12,29 +11,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import type { ZodType } from 'zod';
 import type { AppConfig } from '@goblins/core';
+import { parse } from '../common/parse';
 import { APP_CONFIG } from '../infra/tokens';
 import type { Tenant } from '../tenant/tenant';
 import type { AuthContext, AuthRequest } from './auth';
 import { AuthService, type SessionResult } from './auth.service';
 import { loginSchema, registerSchema } from './schemas';
 import { readCookie, sessionCookieName, sessionCookieOptions } from './session-cookie';
-
-function parse<T>(schema: ZodType<T>, body: unknown): T {
-  const result = schema.safeParse(body);
-  if (!result.success) {
-    throw new BadRequestException({
-      statusCode: 400,
-      message: 'Datos no válidos',
-      errors: result.error.issues.map((issue) => ({
-        field: issue.path.map(String).join('.'),
-        message: issue.message,
-      })),
-    });
-  }
-  return result.data;
-}
 
 function publicAuth(auth: AuthContext) {
   return {

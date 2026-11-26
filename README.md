@@ -80,6 +80,18 @@ Son archivos SQL en `packages/database/migrations/` con el formato `NNNN_descrip
 
 Todo se configura con variables de entorno, validadas al arrancar (`packages/core/src/env.ts`). Parte de `.env.example`. Si falta algo o es inválido, la API se detiene con un mensaje que nombra la variable.
 
+## API de comunidades (panel central)
+
+Solo funciona desde el host de la plataforma (no desde el de una comunidad) y con la sesión del propietario. Cada petición que modifica datos necesita la cabecera `X-CSRF-Token` que devuelve el login.
+
+| Método y ruta | Qué hace |
+|---|---|
+| `POST /api/v1/communities` | Crea una comunidad. Cuerpo: `{ "slug", "name", "adminEmail"? }`. Su host será `<slug>.<PLATFORM_BASE_DOMAIN>`. Si no se indica `adminEmail`, el administrador es la cuenta del propietario. |
+| `GET /api/v1/communities` | Lista las comunidades con su host principal y número de miembros. |
+| `PATCH /api/v1/communities/:id/status` | Suspende o reactiva: `{ "status": "active" \| "suspended" }`. |
+
+Errores habituales: 401 sin sesión, 403 si no es el propietario o se llama desde una comunidad, 400 por datos no válidos (slug reservado, email de administrador sin cuenta activa), 409 si el identificador ya existe.
+
 ## Solución de problemas
 
 - **`pnpm` avisa de "Ignored build scripts"**: es una medida de seguridad de pnpm y aquí no afecta al funcionamiento.

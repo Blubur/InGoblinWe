@@ -1,7 +1,13 @@
 export { createPool } from './client';
 export { loadMigrations, runMigrations, MIGRATIONS_DIR } from './migrate';
-export { findCommunityByHost } from './communities';
-export type { CommunityRef, CommunityStatus } from './communities';
+export { findCommunityByHost, createCommunity, listCommunities, setCommunityStatus } from './communities';
+export type {
+  CommunityRef,
+  CommunityStatus,
+  CommunitySummary,
+  NewCommunity,
+  CreateCommunityResult,
+} from './communities';
 export type { Migration, MigrationResult, RunOptions } from './migrate';
 export type { Pool } from 'pg';
 export { createUser, findUserByEmail, findActiveUserById } from './users';
