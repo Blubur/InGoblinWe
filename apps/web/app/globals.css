@@ -55,7 +55,7 @@ h1 {
   background: var(--card);
   border-radius: 10px;
 }
-.row label {
+.row .label {
   color: var(--text-card);
 }
 .dot {
