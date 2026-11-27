@@ -39,3 +39,27 @@ mensaje 50.000 caracteres.
 
 Sin permisos ni API todavía: editar y borrar mensajes, fijar y bloquear temas, moderación,
 suscripciones y búsqueda llegan en los pasos siguientes. Sin ORM: SQL directo con `pg`.
+
+## API (Fase 3, paso 2) y permisos
+
+Rutas bajo `/api/v1`, solo dentro de una comunidad (por host). No hay invitados: todo exige sesión
+y ser miembro de esa comunidad. Ni el propietario de la plataforma ni las cuentas del panel central
+entran en el foro de una comunidad en la que no son miembros.
+
+| Quién | Qué puede |
+|---|---|
+| Miembro | Leer categorías, foros, temas y mensajes; crear temas; responder |
+| Administrador de la comunidad | Todo lo anterior y crear, editar y borrar categorías y foros (incluido bloquear un foro) |
+
+- `GET|POST /categories`, `PATCH|DELETE /categories/:id`
+- `GET|POST /forums`, `PATCH|DELETE /forums/:id`
+- `GET|POST /forums/:id/topics`, `GET /topics/:id`, `GET|POST /topics/:id/posts`
+
+La comunidad sale siempre del host (`req.tenant`) y el autor siempre es quien hace la petición: ni
+`communityId` ni `authorId` se aceptan del cuerpo. Los permisos se comprueban antes que los datos
+(un miembro que envía basura a una ruta de administrador recibe 403, no 400). Un id de otra
+comunidad da 404, igual que uno inexistente. Borrar algo con contenido da 409. Foro o tema
+bloqueado: 403.
+
+Todavía no hay: editar o borrar mensajes propios, fijar o cerrar temas, gestión de roles de los
+miembros, perfil y cuenta, ni moderación.
