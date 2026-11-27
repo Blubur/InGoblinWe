@@ -19,6 +19,20 @@ export {
   setCanCreateCommunities,
 } from './users';
 export type { User, UserStatus, NewUser, UserSummary } from './users';
+export {
+  createCategory,
+  listCategories,
+  updateCategory,
+  deleteCategory,
+  createForum,
+  listForums,
+  findForum,
+  updateForum,
+  deleteForum,
+} from './forums';
+export type { Category, Forum, DeleteResult, CreateForumResult } from './forums';
+export { createTopic, createPost, findTopic, listTopics, listPosts } from './topics';
+export type { Topic, Post, PageOptions, CreateTopicResult, CreatePostResult } from './topics';
 export { addMembership, findMembershipRole } from './memberships';
 export type { MembershipRole } from './memberships';
 export { createSession, findActiveSession, deleteSession, deleteExpiredSessions } from './sessions';
