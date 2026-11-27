@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { createHash } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigError, loadRootEnv, parseConfig } from '@goblins/core';
@@ -15,6 +16,15 @@ async function bootstrap(): Promise<void> {
 
   loadRootEnv();
   const config = parseConfig(process.env); // Falla pronto y con un mensaje claro si el .env está mal.
+
+  // Huella del secreto del proxy (8 primeros caracteres de su SHA-256): permite comprobar que la web
+  // y la API tienen el mismo valor sin escribir el secreto en los logs.
+  const secret = config.PROXY_SHARED_SECRET;
+  logger.log(
+    secret
+      ? `PROXY_SHARED_SECRET huella=${createHash('sha256').update(secret).digest('hex').slice(0, 8)} longitud=${secret.length}`
+      : 'PROXY_SHARED_SECRET sin definir: se ignora el host reenviado',
+  );
 
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api/v1');

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 
 // Proxy hacia la API. El navegador solo habla con la web (mismo origen), así que
@@ -13,6 +14,19 @@ const FORWARDED_HOST_HEADER = 'x-goblins-host';
 const PROXY_SECRET_HEADER = 'x-goblins-proxy-secret';
 const PASS_THROUGH = ['cookie', 'content-type', 'accept', 'origin', 'x-csrf-token'];
 const TIMEOUT_MS = 10_000;
+
+// Huella del secreto (8 primeros caracteres de su SHA-256), registrada una vez por instancia:
+// se compara con la que escribe la API al arrancar, sin revelar el secreto.
+let fingerprintLogged = false;
+function logSecretFingerprint(secret: string | undefined): void {
+  if (fingerprintLogged) return;
+  fingerprintLogged = true;
+  console.log(
+    secret
+      ? `[proxy] PROXY_SHARED_SECRET huella=${createHash('sha256').update(secret).digest('hex').slice(0, 8)} longitud=${secret.length}`
+      : '[proxy] PROXY_SHARED_SECRET sin definir (vacío o ausente en este despliegue)',
+  );
+}
 
 /** Respuesta de error siempre en JSON, con el formato que espera el cliente. */
 function failure(status: number, message: string): Response {
@@ -33,6 +47,7 @@ async function forward(req: NextRequest): Promise<Response> {
 async function forwardToApi(req: NextRequest): Promise<Response> {
   const apiUrl = process.env.API_URL ?? 'http://127.0.0.1:4000';
   const secret = process.env.PROXY_SHARED_SECRET;
+  logSecretFingerprint(secret);
 
   // Una cabecera HTTP no admite saltos de línea ni caracteres fuera del ASCII imprimible
   // (típico error al pegar el secreto varias veces o con comillas). Se avisa sin escribir el valor.
